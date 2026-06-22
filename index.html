@@ -260,7 +260,7 @@
 
     <!-- ENTRY VIDEO GATE -->
     <div id="entry-video-gate" class="fixed inset-0 flex items-center justify-center bg-black z-[100] cursor-pointer">
-        <video id="entry-video" class="w-full h-full object-cover no-tap-video" playsinline webkit-playsinline
+        <video id="entry-video" class="w-full h-full object-cover no-tap-video" muted playsinline webkit-playsinline
             preload="auto" disablepictureinpicture disableremoteplayback
             x5-video-player-type="h5" x5-playsinline
             controlslist="nodownload nofullscreen noremoteplayback" oncontextmenu="return false">
@@ -268,7 +268,7 @@
         </video>
     </div>
 
-    <div id="main-content" class="hidden fade-in">
+    <div id="main-content" class="hidden">
 
         <!-- HERO -->
         <section class="relative min-h-[100dvh] flex items-center justify-center text-center overflow-hidden py-16">
@@ -843,10 +843,26 @@
             }
         });
 
+        let contentRevealed = false;
         function revealMainContent() {
-            entryVideoGate.classList.add('hidden');
+            if (contentRevealed) return;
+            contentRevealed = true;
+            entryVideoGate.style.transition = 'opacity 0.5s ease';
+            entryVideoGate.style.opacity = '0';
+            setTimeout(() => {
+                entryVideoGate.style.display = 'none';
+            }, 500);
+
+            // Remove hidden, force reflow, THEN add animation — guarantees
+            // iOS Safari actually triggers the keyframes from opacity:0→1.
             mainContent.classList.remove('hidden');
-            mainContent.classList.add('fade-in');
+            mainContent.style.opacity = '0';
+            void mainContent.offsetHeight;          // force reflow
+            requestAnimationFrame(() => {
+                mainContent.classList.add('fade-in');
+                mainContent.style.opacity = '';      // hand back to the animation
+            });
+
             document.body.style.overflow = 'auto';
             startInteractionDetection();
             // Repaint the scratch covers now that the boxes have real dimensions.
@@ -860,6 +876,7 @@
             if (!isPlaying) {
                 backgroundAudio.play().then(() => {
                     isPlaying = true;
+                    pausedByVisibility = false;
                     volumeOn.classList.remove('hidden');
                     volumeOff.classList.add('hidden');
                 }).catch(() => {
@@ -871,37 +888,62 @@
         }
 
         let videoStarted = false;
+        let videoFallbackTimer = null;
+
         entryVideoGate.addEventListener('click', async () => {
             if (videoStarted) return;
             videoStarted = true;
+
             // Start the background music the instant the envelope is tapped.
             backgroundAudio.play().then(() => {
                 isPlaying = true;
+                pausedByVisibility = false;
                 volumeOn.classList.remove('hidden');
                 volumeOff.classList.add('hidden');
             }).catch(() => {});
+
             // Play the entry video (muted so it doesn't clash with the music).
             try {
                 entryVideo.muted = true;
+                entryVideo.currentTime = 0;
                 await entryVideo.play();
+                // Safety fallback: if 'ended' never fires (e.g. video stalls),
+                // reveal content after video duration + 2s buffer.
+                const dur = entryVideo.duration;
+                const timeout = (dur && isFinite(dur) ? dur * 1000 : 15000) + 2000;
+                videoFallbackTimer = setTimeout(revealMainContent, timeout);
             } catch (error) {
-                videoStarted = false;
                 console.error("Entry video play failed:", error);
+                // Video can't play — skip straight to content
+                revealMainContent();
             }
         });
 
-        entryVideo.addEventListener('ended', revealMainContent);
+        entryVideo.addEventListener('ended', () => {
+            if (videoFallbackTimer) clearTimeout(videoFallbackTimer);
+            revealMainContent();
+        });
 
-        // iOS Safari first-frame fix
+        // iOS Safari first-frame fix — video is now muted in HTML so this actually works
         entryVideo.addEventListener('loadedmetadata', () => {
             try { entryVideo.currentTime = 0.001; } catch (e) {}
         });
 
         document.body.style.overflow = 'hidden';
 
+        // Pause/resume audio on tab visibility (pausedByVisibility pattern)
+        let pausedByVisibility = false;
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden && isPlaying) {
-                backgroundAudio.pause();
+            if (document.hidden) {
+                if (isPlaying) {
+                    backgroundAudio.pause();
+                    pausedByVisibility = true;
+                }
+            } else {
+                if (pausedByVisibility && isPlaying) {
+                    backgroundAudio.play().catch(() => {});
+                    pausedByVisibility = false;
+                }
             }
         });
         window.addEventListener('beforeunload', () => { backgroundAudio.pause(); });
