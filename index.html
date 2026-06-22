@@ -924,10 +924,36 @@
             revealMainContent();
         });
 
-        // iOS Safari first-frame fix — video is now muted in HTML so this actually works
+        // iOS first-frame paint:
+        // muted in HTML lets Safari preload. Explicit load() + seek on loadeddata
+        // ensures the poster frame is decoded and visible before the user taps.
+        function primeEntryVideo() {
+            entryVideo.muted = true;
+            entryVideo.load();
+        }
+
         entryVideo.addEventListener('loadedmetadata', () => {
             try { entryVideo.currentTime = 0.001; } catch (e) {}
         });
+
+        entryVideo.addEventListener('loadeddata', () => {
+            try {
+                entryVideo.currentTime = 0.001;
+                entryVideo.pause();
+            } catch (e) {}
+        });
+
+        entryVideo.addEventListener('canplay', () => {
+            if (!videoStarted) {
+                try { entryVideo.currentTime = 0.001; } catch (e) {}
+            }
+        });
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', primeEntryVideo);
+        } else {
+            primeEntryVideo();
+        }
 
         document.body.style.overflow = 'hidden';
 
