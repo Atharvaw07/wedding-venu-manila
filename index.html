@@ -765,7 +765,7 @@
                     <div class="w-16 h-[1px] bg-secondary-accent"></div>
                 </div>
                 <p class="font-body text-sm md:text-base font-semibold uppercase tracking-[0.3em] text-secondary-accent mb-2">
-                    Venu &amp; Manila <br> Together with our families
+                    Venugopal &amp; Manila <br> Together with our families
                 </p>
             </div>
         </section>
@@ -1240,30 +1240,24 @@
             const selectedEvents = Array.from(form.querySelectorAll('input[name="event"]:checked'))
                 .map(c => c.value).join(', ');
 
-            const guess = form.querySelector('input[name="guess_emotional_first"]:checked')?.value || '';
-            const mood = form.querySelector('input[name="wedding_mood"]:checked')?.value || '';
-            const words = (form.querySelector('#words')?.value || '').trim();
+            const message = (form.querySelector('#words')?.value || '').trim();
+            const guess = accepting
+                ? (form.querySelector('input[name="guess_emotional_first"]:checked')?.value || '')
+                : '';
+            const mood = accepting
+                ? (form.querySelector('input[name="wedding_mood"]:checked')?.value || '')
+                : '';
 
-            // Fold the playful answers into the message column so nothing is lost.
-            let messageParts = [];
-            if (words) messageParts.push(words);
-            const extras = [];
-            if (guess) extras.push('Emotional first: ' + guess);
-            if (mood) extras.push('Mood: ' + mood);
-            if (extras.length) messageParts.push('— ' + extras.join(' | '));
-            const message = messageParts.join('\n\n');
-
-            // ---- Standard InviteVibes RSVP backend contract ----
             const payload = {
                 name: (form.querySelector('#name')?.value || '').trim(),
                 phone: (form.querySelector('#phone')?.value || '').trim(),
-                city: "",
                 message: message,
                 attending: accepting ? 'Joyfully Accept' : 'Regrettably Decline',
                 guestCount: accepting ? (form.querySelector('#guestCount')?.value || '1') : '0',
-                companions: "",
-                attendingEvents: accepting ? selectedEvents : "",
-                clientId: "venugopal-manila-wedding-2026"
+                attendingEvents: accepting ? selectedEvents : '',
+                guess_emotional_first: guess,
+                wedding_mood: mood,
+                clientId: 'venugopal-manila-wedding-2026'
             };
 
             try {
